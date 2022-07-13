@@ -1504,6 +1504,7 @@ class TestSSL(SocketDummyServerTestCase):
         https://github.com/urllib3/urllib3/issues/2513
         """
         content_length = 2**31  # (`int` max value in C) + 1.
+        ssl_ready = Event()
 
         def socket_handler(listener: socket.socket) -> None:
             sock = listener.accept()[0]
@@ -1514,6 +1515,7 @@ class TestSSL(SocketDummyServerTestCase):
                 certfile=DEFAULT_CERTS["certfile"],
                 ca_certs=DEFAULT_CA,
             )
+            ssl_ready.set()
 
             while not ssl_sock.recv(65536).endswith(b"\r\n\r\n"):
                 continue
@@ -1532,6 +1534,7 @@ class TestSSL(SocketDummyServerTestCase):
             sock.close()
 
         self._start_server(socket_handler)
+        ssl_ready.wait(5)
         with HTTPSConnectionPool(
             self.host, self.port, ca_certs=DEFAULT_CA, retries=False
         ) as pool:
