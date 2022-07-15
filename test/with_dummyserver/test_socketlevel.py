@@ -1517,7 +1517,7 @@ class TestSSL(SocketDummyServerTestCase):
             )
             ssl_ready.set()
 
-            while not ssl_sock.recv(65536).endswith(b"\r\n\r\n"):
+            while not ssl_sock.recv(8192).endswith(b"\r\n\r\n"):
                 continue
 
             ssl_sock.send(
