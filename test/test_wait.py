@@ -28,7 +28,7 @@ def spair() -> Generator[TYPE_SOCKET_PAIR, None, None]:
     b.close()
 
 
-variants: List[TYPE_WAIT_FOR] = [wait_for_socket, select_wait_for_socket]
+variants: List[TYPE_WAIT_FOR] = [select_wait_for_socket]
 if _have_working_poll():
     variants.append(poll_wait_for_socket)
 
