@@ -21,6 +21,7 @@ import tornado.web
 import trustme
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+from pytest_reraise.reraise import reraise
 
 from urllib3.exceptions import HTTPWarning
 from urllib3.util import ALPN_PROTOCOLS, resolve_cert_reqs, resolve_ssl_version
@@ -136,7 +137,8 @@ class SocketServerThread(threading.Thread):
         sock.close()
 
     def run(self) -> None:
-        self._start_server()
+        with reraise:
+            self._start_server()
 
 
 def ssl_options_to_context(  # type: ignore[no-untyped-def]
