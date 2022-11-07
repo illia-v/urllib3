@@ -1226,7 +1226,6 @@ class TestSSL(SocketDummyServerTestCase):
 
         def socket_handler(listener: socket.socket) -> None:
             sock = listener.accept()[0]
-            raise Exception
             ssl_sock = ssl.wrap_socket(
                 sock,
                 server_side=True,
