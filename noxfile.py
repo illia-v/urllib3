@@ -48,7 +48,7 @@ def tests_impl(
         "--tb=native",
         "--no-success-flaky-report",
         "-vv",
-        *(session.posargs or ("test/",)),
+        *(session.posargs or ("test/with_dummyserver/test_chunked_transfer.py::TestChunkedTransfer",)),
         env={"PYTHONWARNINGS": "always::DeprecationWarning"},
     )
 
