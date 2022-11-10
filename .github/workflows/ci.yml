@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12-dev"]
         os:
           - macos-11
           - windows-latest
@@ -67,11 +67,6 @@ jobs:
             experimental: false
             nox-session: test-3.9
           - python-version: 3.12-dev
-            os: ubuntu-20.04
-            experimental: true
-            nox-session: test-3.12
-          - python-version: 3.12-dev
-            os: ubuntu-22.04
             experimental: true
             nox-session: test-3.12
         exclude:
@@ -90,14 +85,15 @@ jobs:
       - name: "Checkout repository"
         uses: "actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8"
 
-      - if: ${{ !endsWith(matrix.python-version, '-dev') }}
+      - if: ${{ !(endsWith(matrix.python-version, '-dev') and startsWith(matrix.os, 'ubuntu')) }}
         name: "Setup Python ${{ matrix.python-version }}"
         uses: "actions/setup-python@13ae5bb136fac2878aff31522b9efb785519f984"
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Use deadsnakes for development versions
-      - if: endsWith(matrix.python-version, '-dev')
+      # Use deadsnakes for development versions on Ubuntu, they are usually more up to date with
+      # CPython upstream then versions provided by GitHub Actions.
+      - if: ${{ endsWith(matrix.python-version, '-dev') and startsWith(matrix.os, 'ubuntu') }}
         name: "Setup Python ${{ matrix.python-version }}"
         uses: deadsnakes/action@7ab8819e223c70d2bdedd692dfcea75824e0a617
         with:
