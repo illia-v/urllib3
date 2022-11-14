@@ -107,7 +107,15 @@ jobs:
           cache: "pip"
 
       - name: "Install dependencies"
-        run: python -m pip install --upgrade pip setuptools nox
+        run: |
+          python -m pip install --upgrade pip setuptools nox
+          # Install liblz4 for building memray from source on non-final CPython versions.
+          # https://github.com/bloomberg/memray#building-from-source
+          if [ $RUNNER_OS == "macOS" ]; then
+            brew install lz4
+            echo "CFLAGS='-I$(brew --prefix lz4)/include'" >> $GITHUB_ENV
+            echo "LDFLAGS='-L$(brew --prefix lz4)/lib -Wl,-rpath,$(brew --prefix lz4)/lib'" >> $GITHUB_ENV
+          fi
 
       - name: "Run tests"
         run: ./ci/run_tests.sh
