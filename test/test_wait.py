@@ -133,7 +133,6 @@ def test_eintr(wfs: TYPE_WAIT_FOR, spair: TYPE_SOCKET_PAIR) -> None:
 
 @pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="need setitimer() support")
 @pytest.mark.parametrize("wfs", variants)
-@pytest.mark.timeout(60, method="thread")
 def test_eintr_zero_timeout(wfs: TYPE_WAIT_FOR, spair: TYPE_SOCKET_PAIR) -> None:
     a, b = spair
     interrupt_count = [0]
