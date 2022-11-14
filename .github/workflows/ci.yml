@@ -89,6 +89,7 @@ jobs:
         uses: "actions/setup-python@13ae5bb136fac2878aff31522b9efb785519f984"
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "pip"
 
       # Use deadsnakes for development versions on Ubuntu. GitHub Actions usually provides older
       # versions because it sticks to alpha/beta releases.
