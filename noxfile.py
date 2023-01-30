@@ -55,6 +55,8 @@ def tests_impl(
         "--parallel-mode",
         "-m",
         "pytest",
+        "-n",
+        "auto",
         *("--memray", "--hide-memray-summary") if memray_supported else (),
         "-v",
         "-ra",
