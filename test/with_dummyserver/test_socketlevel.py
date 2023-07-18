@@ -28,7 +28,6 @@ from test import (
     resolvesLocalhostFQDN,
 )
 from threading import Event
-from types import TracebackType
 from unittest import mock
 
 import pytest
@@ -62,7 +61,6 @@ from .. import LogRecorder, has_alpn
 
 if typing.TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
-    from typing_extensions import Self
 else:
     StrOrBytesPath = object
 
@@ -1628,47 +1626,32 @@ class TestSSL(SocketDummyServerTestCase):
             temp_file.write(b"\x00" * content_length)
             temp_file.flush()
 
-            with OpenSSLServer(
-                cert_file=DEFAULT_CERTS["certfile"],
-                key_file=DEFAULT_CERTS["keyfile"],
-                working_dir=os.path.dirname(temp_file.name),
-                port=port,
-            ):
-                with HTTPSConnectionPool(
-                    self.host, port, ca_certs=DEFAULT_CA, retries=Retry(connect=3)
-                ) as pool:
-                    response = pool.request(
-                        "GET",
-                        f"/{os.path.basename(temp_file.name)}",
-                        preload_content=preload_content,
-                    )
-                    data = response.data if preload_content else response.read(read_amt)
-                    assert len(data) == content_length
+            command_args = (
+                "openssl",
+                "s_server",
+                "-www",
+                "-cert",
+                DEFAULT_CERTS["certfile"],
+                "-key",
+                DEFAULT_CERTS["keyfile"],
+                "-accept",
+                str(port),
+            )
+            process = subprocess.Popen(
+                command_args, cwd=os.path.dirname(temp_file.name)
+            )
+            pool = HTTPSConnectionPool(
+                self.host, port, ca_certs=DEFAULT_CA, retries=Retry(connect=3)
+            )
 
-
-class OpenSSLServer:
-    def __init__(
-        self, cert_file: str, key_file: str, working_dir: str, port: int
-    ) -> None:
-        self.cert_file = cert_file
-        self.key_file = key_file
-        self.port = port
-        self.process = None
-        self.working_dir = working_dir
-
-    def __enter__(self) -> Self:
-        command = f"cd {self.working_dir} && openssl s_server -WWW -cert {self.cert_file} -key {self.key_file} -accept {self.port}"
-        self.process = subprocess.Popen(command, shell=True)
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        if self.process:
-            self.process.kill()
+            with process, pool:
+                response = pool.request(
+                    "GET",
+                    f"/{os.path.basename(temp_file.name)}",
+                    preload_content=preload_content,
+                )
+                data = response.data if preload_content else response.read(read_amt)
+                assert len(data) == content_length
 
 
 class TestErrorWrapping(SocketDummyServerTestCase):
