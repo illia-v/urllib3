@@ -11,6 +11,7 @@ import select
 import shutil
 import socket
 import ssl
+import subprocess
 import sys
 import tempfile
 import time
@@ -27,6 +28,7 @@ from test import (
     resolvesLocalhostFQDN,
 )
 from threading import Event
+from types import TracebackType
 from unittest import mock
 
 import pytest
@@ -60,6 +62,7 @@ from .. import LogRecorder, has_alpn
 
 if typing.TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
+    from typing_extensions import Self
 else:
     StrOrBytesPath = object
 
@@ -1619,43 +1622,53 @@ class TestSSL(SocketDummyServerTestCase):
         https://github.com/urllib3/urllib3/issues/2513
         """
         content_length = 2**31  # (`int` max value in C) + 1.
-        ssl_ready = Event()
+        port = 54511
 
-        def socket_handler(listener: socket.socket) -> None:
-            sock = listener.accept()[0]
-            ssl_sock = original_ssl_wrap_socket(
-                sock,
-                server_side=True,
-                keyfile=DEFAULT_CERTS["keyfile"],
-                certfile=DEFAULT_CERTS["certfile"],
-                ca_certs=DEFAULT_CA,
-            )
-            ssl_ready.set()
+        with tempfile.NamedTemporaryFile() as temp_file:
+            temp_file.write(b"\x00" * content_length)
+            temp_file.flush()
 
-            while not ssl_sock.recv(65536).endswith(b"\r\n\r\n"):
-                continue
+            with OpenSSLServer(
+                cert_file=DEFAULT_CERTS["certfile"],
+                key_file=DEFAULT_CERTS["keyfile"],
+                working_dir=os.path.dirname(temp_file.name),
+                port=port,
+            ):
+                with HTTPSConnectionPool(
+                    self.host, port, ca_certs=DEFAULT_CA, retries=Retry(connect=3)
+                ) as pool:
+                    response = pool.request(
+                        "GET",
+                        f"/{os.path.basename(temp_file.name)}",
+                        preload_content=preload_content,
+                    )
+                    data = response.data if preload_content else response.read(read_amt)
+                    assert len(data) == content_length
 
-            ssl_sock.send(
-                b"HTTP/1.1 200 OK\r\n"
-                b"Content-Type: text/plain\r\n"
-                b"Content-Length: %d\r\n\r\n" % content_length
-            )
 
-            chunks = 2
-            for i in range(chunks):
-                ssl_sock.sendall(bytes(content_length // chunks))
+class OpenSSLServer:
+    def __init__(
+        self, cert_file: str, key_file: str, working_dir: str, port: int
+    ) -> None:
+        self.cert_file = cert_file
+        self.key_file = key_file
+        self.port = port
+        self.process = None
+        self.working_dir = working_dir
 
-            ssl_sock.close()
-            sock.close()
+    def __enter__(self) -> Self:
+        command = f"cd {self.working_dir} && openssl s_server -WWW -cert {self.cert_file} -key {self.key_file} -accept {self.port}"
+        self.process = subprocess.Popen(command, shell=True)
+        return self
 
-        self._start_server(socket_handler)
-        ssl_ready.wait(5)
-        with HTTPSConnectionPool(
-            self.host, self.port, ca_certs=DEFAULT_CA, retries=False
-        ) as pool:
-            response = pool.request("GET", "/", preload_content=preload_content)
-            data = response.data if preload_content else response.read(read_amt)
-            assert len(data) == content_length
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if self.process:
+            self.process.kill()
 
 
 class TestErrorWrapping(SocketDummyServerTestCase):
