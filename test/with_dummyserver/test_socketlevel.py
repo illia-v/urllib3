@@ -1622,12 +1622,11 @@ class TestSSL(SocketDummyServerTestCase):
         content_length = 2**31  # (`int` max value in C) + 1.
         port = 52549
 
-        # The temp file cannot be opened the second time on Windows
-        # unless the mode is "w".
-        with tempfile.NamedTemporaryFile(mode="w") as temp_file:
-            with open(temp_file.name, "wb") as temp_file_wb:
-                temp_file_wb.write(b"\x00" * content_length)
-                temp_file_wb.flush()
+        # OpenSSL server won't be allowed to open the file unless `delete=False`.
+        temp_file = tempfile.NamedTemporaryFile(delete=False)
+        try:
+            temp_file.write(b"\x00" * content_length)
+            temp_file.flush()
 
             command_args = (
                 "openssl",
@@ -1641,10 +1640,10 @@ class TestSSL(SocketDummyServerTestCase):
                 str(port),
             )
 
+            process = subprocess.Popen(
+                command_args, cwd=os.path.dirname(temp_file.name)
+            )
             try:
-                process = subprocess.Popen(
-                    command_args, cwd=os.path.dirname(temp_file.name)
-                )
                 with HTTPSConnectionPool(
                     "localhost",
                     port,
@@ -1658,12 +1657,12 @@ class TestSSL(SocketDummyServerTestCase):
                     )
                     data = response.data if preload_content else response.read(read_amt)
             finally:
-                try:
-                    process.kill()
-                    process.communicate()
-                except UnboundLocalError:
-                    pass
-            assert len(data) == content_length
+                process.kill()
+                process.communicate()
+        finally:
+            temp_file.close()
+            os.unlink(temp_file.name)
+        assert len(data) == content_length
 
 
 class TestErrorWrapping(SocketDummyServerTestCase):
