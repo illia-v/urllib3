@@ -1620,7 +1620,7 @@ class TestSSL(SocketDummyServerTestCase):
         https://github.com/urllib3/urllib3/issues/2513
         """
         content_length = 2**31  # (`int` max value in C) + 1.
-        port = 54511
+        port = 52549
 
         with tempfile.NamedTemporaryFile() as temp_file:
             temp_file.write(b"\x00" * content_length)
@@ -1629,7 +1629,7 @@ class TestSSL(SocketDummyServerTestCase):
             command_args = (
                 "openssl",
                 "s_server",
-                "-www",
+                "-WWW",
                 "-cert",
                 DEFAULT_CERTS["certfile"],
                 "-key",
@@ -1637,21 +1637,30 @@ class TestSSL(SocketDummyServerTestCase):
                 "-accept",
                 str(port),
             )
-            process = subprocess.Popen(
-                command_args, cwd=os.path.dirname(temp_file.name)
-            )
-            pool = HTTPSConnectionPool(
-                self.host, port, ca_certs=DEFAULT_CA, retries=Retry(connect=3)
-            )
 
-            with process, pool:
-                response = pool.request(
-                    "GET",
-                    f"/{os.path.basename(temp_file.name)}",
-                    preload_content=preload_content,
+            try:
+                process = subprocess.Popen(
+                    command_args, cwd=os.path.dirname(temp_file.name)
                 )
-                data = response.data if preload_content else response.read(read_amt)
-                assert len(data) == content_length
+                with HTTPSConnectionPool(
+                    "localhost",
+                    port,
+                    ca_certs=DEFAULT_CA,
+                    retries=Retry(connect=5, backoff_factor=LONG_TIMEOUT),
+                ) as pool:
+                    response = pool.request(
+                        "GET",
+                        f"/{os.path.basename(temp_file.name)}",
+                        preload_content=preload_content,
+                    )
+                    data = response.data if preload_content else response.read(read_amt)
+            finally:
+                try:
+                    process.kill()
+                    process.communicate()
+                except UnboundLocalError:
+                    pass
+            assert len(data) == content_length
 
 
 class TestErrorWrapping(SocketDummyServerTestCase):
