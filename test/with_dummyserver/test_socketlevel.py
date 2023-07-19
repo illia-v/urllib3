@@ -1622,7 +1622,7 @@ class TestSSL(SocketDummyServerTestCase):
         content_length = 2**31  # (`int` max value in C) + 1.
         port = 52549
 
-        with tempfile.NamedTemporaryFile() as temp_file:
+        with tempfile.NamedTemporaryFile(dir=os.getcwd()) as temp_file:
             temp_file.write(b"\x00" * content_length)
             temp_file.flush()
 
@@ -1639,9 +1639,7 @@ class TestSSL(SocketDummyServerTestCase):
             )
 
             try:
-                process = subprocess.Popen(
-                    command_args, cwd=os.path.dirname(temp_file.name)
-                )
+                process = subprocess.Popen(command_args, cwd=os.getcwd())
                 with HTTPSConnectionPool(
                     "localhost",
                     port,
