@@ -1620,7 +1620,13 @@ class TestSSL(SocketDummyServerTestCase):
         https://github.com/urllib3/urllib3/issues/2513
         """
         content_length = 2**31  # (`int` max value in C) + 1.
-        port = 52549
+
+        # A hack to find a free port.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(("0.0.0.0", 0))
+        sock.listen()
+        port = sock.getsockname()[1]
+        sock.close()
 
         # OpenSSL server won't be allowed to open the file unless `delete=False`.
         temp_file = tempfile.NamedTemporaryFile(delete=False)
