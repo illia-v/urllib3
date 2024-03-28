@@ -269,6 +269,8 @@ class SingleTLSLayerTestCase(SocketDummyServerTestCase):
             validate_response(response)
 
 
+# Proxy tests sometimes fail when run in parallel.
+@pytest.mark.xdist_group(name="proxies")
 class SocketProxyDummyServer(SocketDummyServerTestCase):
     """
     Simulates a proxy that performs a simple I/O loop on client/server

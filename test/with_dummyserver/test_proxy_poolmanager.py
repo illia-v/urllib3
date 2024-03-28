@@ -754,6 +754,8 @@ class TestIPv6HTTPProxyManager(IPv6HypercornDummyProxyTestCase):
             assert r.status == 200
 
 
+# Proxy tests sometimes fail when run in parallel.
+@pytest.mark.xdist_group(name="proxies")
 class TestHTTPSProxyVerification:
     @staticmethod
     def _get_proxy_fingerprint_md5(ca_path: str) -> str:
