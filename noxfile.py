@@ -80,7 +80,7 @@ def tests_impl(
         "-m",
         "pytest",
         "--dist=loadgroup",
-        f"--tx={os.cpu_count()}*popen//python=python",
+        f"--tx={os.cpu_count()}*popen//python={sys.executable}",
         *("--memray", "--hide-memray-summary") if memray_supported else (),
         "-v",
         "-ra",
