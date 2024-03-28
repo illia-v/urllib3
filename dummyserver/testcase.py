@@ -232,6 +232,8 @@ class HTTPSHypercornDummyServerTestCase(HypercornDummyServerTestCase):
     bad_ca_path = ""
 
 
+# Proxy tests sometimes fail when run in parallel.
+@pytest.mark.xdist_group(name="proxies")
 class HypercornDummyProxyTestCase:
     http_host: typing.ClassVar[str] = "localhost"
     http_host_alt: typing.ClassVar[str] = "127.0.0.1"

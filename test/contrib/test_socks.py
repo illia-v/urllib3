@@ -234,12 +234,16 @@ def handle_socks4_negotiation(
     sock.sendall(response)
 
 
+# Proxy tests sometimes fail when run in parallel.
+@pytest.mark.xdist_group(name="proxies")
 class TestSOCKSProxyManager:
     def test_invalid_socks_version_is_valueerror(self) -> None:
         with pytest.raises(ValueError, match="Unable to determine SOCKS version"):
             socks.SOCKSProxyManager(proxy_url="http://example.org")
 
 
+# Proxy tests sometimes fail when run in parallel.
+@pytest.mark.xdist_group(name="proxies")
 class TestSocks5Proxy(IPV4SocketDummyServerTestCase):
     """
     Test the SOCKS proxy in SOCKS5 mode.
@@ -544,6 +548,8 @@ class TestSocks5Proxy(IPV4SocketDummyServerTestCase):
             assert response.status == 200
 
 
+# Proxy tests sometimes fail when run in parallel.
+@pytest.mark.xdist_group(name="proxies")
 class TestSOCKS4Proxy(IPV4SocketDummyServerTestCase):
     """
     Test the SOCKS proxy in SOCKS4 mode.
@@ -725,6 +731,8 @@ class TestSOCKS4Proxy(IPV4SocketDummyServerTestCase):
                 pm.request("GET", "http://example.com", retries=False)
 
 
+# Proxy tests sometimes fail when run in parallel.
+@pytest.mark.xdist_group(name="proxies")
 class TestSOCKSWithTLS(IPV4SocketDummyServerTestCase):
     """
     Test that TLS behaves properly for SOCKS proxies.
