@@ -5,6 +5,7 @@ import datetime
 import os.path
 import shutil
 import ssl
+import sys
 import tempfile
 import warnings
 from pathlib import Path
@@ -989,6 +990,11 @@ class BaseTestHTTPS(HTTPSHypercornDummyServerTestCase):
             )
         assert ctx.minimum_version == self.tls_version()
         assert ctx.maximum_version == self.tls_version()
+
+
+# PyPy fails when tests inheriting `BaseTestHTTPS` run in parallel.
+if sys.implementation.name == "pypy":
+    BaseTestHTTPS = pytest.mark.xdist_group(name="https")(BaseTestHTTPS)  # type: ignore[misc]
 
 
 @pytest.mark.usefixtures("requires_tlsv1")

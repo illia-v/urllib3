@@ -59,6 +59,8 @@ def assert_is_verified(pm: ProxyManager, *, proxy: bool, target: bool) -> None:
     assert connection.is_verified is target
 
 
+# The tests sometimes fail when run in parallel.
+@pytest.mark.xdist_group(name="proxy_manager")
 class TestHTTPProxyManager(HypercornDummyProxyTestCase):
     @classmethod
     def setup_class(cls) -> None:
