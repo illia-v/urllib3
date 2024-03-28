@@ -81,6 +81,7 @@ def tests_impl(
         "pytest",
         "-n",
         "auto",
+        "--dist=loadfile",
         *("--memray", "--hide-memray-summary") if memray_supported else (),
         "-v",
         "-ra",
