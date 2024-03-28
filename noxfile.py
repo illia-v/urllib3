@@ -79,7 +79,7 @@ def tests_impl(
         "--parallel-mode",
         "-m",
         "pytest",
-        "--dist=load",
+        "--dist=loadgroup",
         f"--tx={os.cpu_count()}*popen//python=python",
         *("--memray", "--hide-memray-summary") if memray_supported else (),
         "-v",
