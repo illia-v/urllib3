@@ -69,13 +69,14 @@ def tests_impl(
         pytest_session_envvars["COVERAGE_CORE"] = "sysmon"
 
     # Tests fail often when run in parallel on PyPy 3.8 and 3.9 or Emscripten.
+    xdist_args: tuple[str, ...]
     if (
         implementation_name == "pypy" and session.python in ("pypy3.8", "pypy3.9")
     ) or session.name.startswith("emscripten"):
         xdist_args = ()
     else:
         xdist_args = (
-            "--dist=loadgroup",
+            "--dist=loadfile",
             f"--tx={os.cpu_count()}*popen//python={executable}",
         )
 
