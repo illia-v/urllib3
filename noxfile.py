@@ -68,6 +68,15 @@ def tests_impl(
     ):
         pytest_session_envvars["COVERAGE_CORE"] = "sysmon"
 
+    # Tests fail often whn run in parallel on PyPy or Emscripten.
+    if sys.implementation.name != "pypy" and session.name != "emscripten":
+        xdist_args = (
+            "--dist=loadgroup",
+            f"--tx={os.cpu_count()}*popen//python={executable}",
+        )
+    else:
+        xdist_args = ()
+
     # Inspired from https://hynek.me/articles/ditch-codecov-python/
     # We use parallel mode and then combine in a later CI step
     session.run(
@@ -79,8 +88,7 @@ def tests_impl(
         "--parallel-mode",
         "-m",
         "pytest",
-        "--dist=loadgroup",
-        f"--tx={os.cpu_count()}*popen//python={executable}",
+        *xdist_args,
         *("--memray", "--hide-memray-summary") if memray_supported else (),
         "-v",
         "-ra",

@@ -992,11 +992,6 @@ class BaseTestHTTPS(HTTPSHypercornDummyServerTestCase):
         assert ctx.maximum_version == self.tls_version()
 
 
-# PyPy fails when tests inheriting `BaseTestHTTPS` run in parallel.
-if sys.implementation.name == "pypy":
-    BaseTestHTTPS = pytest.mark.xdist_group(name="https")(BaseTestHTTPS)  # type: ignore[misc]
-
-
 @pytest.mark.usefixtures("requires_tlsv1")
 class TestHTTPS_TLSv1(BaseTestHTTPS):
     tls_protocol_name = "TLSv1"
