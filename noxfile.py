@@ -68,14 +68,16 @@ def tests_impl(
     ):
         pytest_session_envvars["COVERAGE_CORE"] = "sysmon"
 
-    # Tests fail often whn run in parallel on PyPy or Emscripten.
-    if sys.implementation.name != "pypy" and session.name != "emscripten":
+    # Tests fail often when run in parallel on PyPy 3.8 and 3.9 or Emscripten.
+    if (
+        implementation_name == "pypy" and session.python in ("pypy3.8", "pypy3.9")
+    ) or session.name == "emscripten":
+        xdist_args = ()
+    else:
         xdist_args = (
             "--dist=loadgroup",
             f"--tx={os.cpu_count()}*popen//python={executable}",
         )
-    else:
-        xdist_args = ()
 
     # Inspired from https://hynek.me/articles/ditch-codecov-python/
     # We use parallel mode and then combine in a later CI step
