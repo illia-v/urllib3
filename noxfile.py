@@ -25,10 +25,10 @@ def tests_impl(
     session_python_info = session.run(
         "python",
         "-c",
-        "import sys; print(sys.implementation.name, sys.version_info.releaselevel)",
+        "import sys; print(sys.implementation.name, sys.version_info.releaselevel, sys.executable)",
         silent=True,
     ).strip()  # type: ignore[union-attr] # mypy doesn't know that silent=True  will return a string
-    implementation_name, release_level = session_python_info.split(" ")
+    implementation_name, release_level, executable = session_python_info.split(" ", 2)
 
     # zstd cannot be installed on CPython 3.13 yet because it pins
     # an incompatible CFFI version.
@@ -80,7 +80,7 @@ def tests_impl(
         "-m",
         "pytest",
         "--dist=loadgroup",
-        f"--tx={os.cpu_count()}*popen//python={sys.executable}",
+        f"--tx={os.cpu_count()}*popen//python={executable}",
         *("--memray", "--hide-memray-summary") if memray_supported else (),
         "-v",
         "-ra",
