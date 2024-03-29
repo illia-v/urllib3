@@ -71,7 +71,7 @@ def tests_impl(
     # Tests fail often when run in parallel on PyPy 3.8 and 3.9 or Emscripten.
     if (
         implementation_name == "pypy" and session.python in ("pypy3.8", "pypy3.9")
-    ) or session.name == "emscripten":
+    ) or session.name.startswith("emscripten"):
         xdist_args = ()
     else:
         xdist_args = (

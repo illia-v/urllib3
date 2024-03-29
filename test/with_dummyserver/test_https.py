@@ -5,7 +5,6 @@ import datetime
 import os.path
 import shutil
 import ssl
-import sys
 import tempfile
 import warnings
 from pathlib import Path
