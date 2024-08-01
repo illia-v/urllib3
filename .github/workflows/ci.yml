@@ -33,7 +33,7 @@ jobs:
         os: [macos-12, windows-latest, ubuntu-latest]
         experimental: [false]
         nox-session: ['']
-        pytest-params: ["-k 'not requesting_large_resources_via_ssl'"]
+        pytest-no-keywords: [false]
         exclude:
           # actions/setup-python dropped support for 3.6 in Ubuntu 22.04
           - python-version: "3.6"
@@ -75,7 +75,7 @@ jobs:
             os: ubuntu-latest
             experimental: false
             nox-session: app_engine
-            pytest-params: ''
+            pytest-no-keywords: true
           - python-version: 3.13
             os: ubuntu-latest
             experimental: true
@@ -120,7 +120,7 @@ jobs:
 
       - name: Run Tests
         # `test_requesting_large_resources_via_ssl` is run separately to avoid timeouts.
-        run: ./ci/run_tests.sh test/ -k ${{ matrix.pytest-params }} -vv
+        run: ./ci/run_tests.sh test/ ${{ matrix.pytest-no-keywords == true && '' || '-k "not requesting_large_resources_via_ssl"' }} -vv
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           NOX_SESSION: ${{ matrix.nox-session }}
