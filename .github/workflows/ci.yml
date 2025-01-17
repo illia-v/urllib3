@@ -47,6 +47,11 @@ jobs:
         nox-session: ['']
         include:
           - experimental: false
+          # Linux ARM
+          - python-version: "3.13"
+            os: ubuntu-24.04-arm64
+            experimental: false
+            nox-session: ""
           # integration
           # 3.9 has a known issue with large SSL requests that we work around:
           # https://github.com/urllib3/urllib3/pull/3181#issuecomment-1794830698
