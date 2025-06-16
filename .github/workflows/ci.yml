@@ -58,6 +58,10 @@ jobs:
             os: ubuntu-24.04
             experimental: false
             nox-session: test_integration
+          - python-version: "3.12.2"
+            os: ubuntu-24.04
+            experimental: false
+            nox-session: test-3.12
           # pypy
           - python-version: "pypy-3.10"
             os: ubuntu-24.04
