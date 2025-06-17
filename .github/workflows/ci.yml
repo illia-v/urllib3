@@ -141,6 +141,7 @@ jobs:
           key: pyodide-downloads-${{ hashFiles('noxfile.py') }}
       - name: "Run tests"
         run: |
+          $Env:Path
           where python3.13
           uvx nox -s "$NOX_SESSION"
         env:
