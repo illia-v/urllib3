@@ -73,7 +73,7 @@ def tests_impl(
         "-m",
         "pytest",
         *("--memray", "--hide-memray-summary") if memray_supported else (),
-        "-v",
+        "-vv",
         "-ra",
         *(("--integration",) if integration else ()),
         "--tb=native",
