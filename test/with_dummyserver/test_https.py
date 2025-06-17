@@ -915,12 +915,11 @@ class BaseTestHTTPS(HTTPSHypercornDummyServerTestCase):
     def test_sslkeylogfile(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        return
         if not hasattr(util.SSLContext, "keylog_filename"):
             pytest.skip("requires OpenSSL 1.1.1+")
 
         keylog_file = tmp_path / "keylogfile.txt"
-        monkeypatch.setenv("SSLKEYLOGFILE", str(keylog_file))
+        # monkeypatch.setenv("SSLKEYLOGFILE", str(keylog_file))
 
         with HTTPSConnectionPool(
             self.host,
