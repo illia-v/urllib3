@@ -98,12 +98,12 @@ jobs:
           fetch-depth: 0 # Needed to fetch the version from git
           persist-credentials: false
 
-      # - name: "Setup Python ${{ matrix.python-version }}"
-      #   uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-      #   with:
-      #     python-version: ${{ matrix.python-version }}
-      #     allow-prereleases: true
-      #     check-latest: true
+      - name: "Setup Python ${{ matrix.python-version }}"
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
+          check-latest: true
 
       - name: "Install uv"
         uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6.1.0
