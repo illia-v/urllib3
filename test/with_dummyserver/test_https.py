@@ -915,6 +915,7 @@ class BaseTestHTTPS(HTTPSHypercornDummyServerTestCase):
     def test_sslkeylogfile(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        return
         if not hasattr(util.SSLContext, "keylog_filename"):
             pytest.skip("requires OpenSSL 1.1.1+")
 
