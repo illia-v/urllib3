@@ -143,6 +143,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
+          dir "%Python3_ROOT_DIR%"
           for %%I in (python.exe) do mklink %%~dpIpython${{ matrix.python-version }}.exe %%~dpIpython.exe
       - name: "Run tests"
         run: |
