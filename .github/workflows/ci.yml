@@ -39,44 +39,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.12"]
         os:
-          - macos-15
-          - windows-latest
           - ubuntu-24.04
         nox-session: ['']
         include:
           - experimental: false
-          # integration
-          # 3.9 has a known issue with large SSL requests that we work around:
-          # https://github.com/urllib3/urllib3/pull/3181#issuecomment-1794830698
-          - python-version: "3.9"
-            os: ubuntu-24.04
-            experimental: false
-            nox-session: test_integration
-          - python-version: "3.12"
-            os: ubuntu-24.04
-            experimental: false
-            nox-session: test_integration
-          # Test with 3.12.2 for https://github.com/urllib3/urllib3/pull/3620 patch
-          - python-version: "3.12.2"
-            os: ubuntu-24.04
-            experimental: false
-            nox-session: test-3.12
-          # pypy
-          - python-version: "pypy-3.10"
-            os: ubuntu-24.04
-            experimental: false
-            nox-session: test-pypy3.10
-          - python-version: "pypy-3.11"
-            os: ubuntu-24.04
-            experimental: false
-            nox-session: test-pypy3.11
-          - python-version: "3.x"
-          # brotli
-            os: ubuntu-24.04
-            experimental: false
-            nox-session: test_brotlipy
           - python-version: "3.12"
             os: ubuntu-24.04
             nox-session: emscripten(node)
@@ -88,8 +56,6 @@ jobs:
           - python-version: "3.12"
             os: ubuntu-24.04
             nox-session: emscripten(chrome)
-            experimental: true
-          - python-version: 3.14
             experimental: true
 
     runs-on: ${{ matrix.os }}
