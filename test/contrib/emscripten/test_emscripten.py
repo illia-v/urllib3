@@ -28,7 +28,6 @@ pyodide_config.set_flags(
 )
 
 
-@pytest.mark.driver_timeout(180)
 def test_index(
     selenium_coverage: typing.Any, testserver_http: PyodideServerInfo, has_jspi: bool
 ) -> None:
