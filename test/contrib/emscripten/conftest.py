@@ -99,15 +99,9 @@ def selenium_coverage(
 
         print("Installed package:", result)
 
+        self.run_js("await pyodide.loadPackage('sqlite3')")
         self.run_js(
-            """
-            await pyodide.loadPackage('coverage', {
-                errorCallback: (e) => {
-                console.error("Error loading coverage package:", e);
-                throw e;
-                }
-            })
-            """
+            "await pyodide.loadPackage('https://files.pythonhosted.org/packages/08/b8/7ddd1e8ba9701dea08ce22029917140e6f66a859427406579fd8d0ca7274/coverage-7.9.1-py3-none-any.whl')"
         )
         self.run_js("await pyodide.runPythonAsync('import coverage')")
         self.run_js(
