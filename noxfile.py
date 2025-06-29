@@ -273,6 +273,7 @@ def emscripten(session: nox.Session, runner: str) -> None:
         session,
         extras="",
         pytest_extra_args=[
+            "-x",
             "--runtime",
             f"{runner}-no-host",
             "--dist-dir",
