@@ -247,26 +247,26 @@ class ServerRunnerInfo:
 # we are at the same origin as web requests to server_host
 @pytest.fixture()
 def run_from_server(
-    selenium_coverage: Any, testserver_http: PyodideServerInfo
+    selenium_with_jspi_if_possible: Any, testserver_http: PyodideServerInfo
 ) -> Generator[ServerRunnerInfo]:
-    if selenium_coverage.browser != "node":
+    if selenium_with_jspi_if_possible.browser != "node":
         # on node, we don't need to be on the same origin
         # so we can ignore all this
         addr = f"https://{testserver_http.http_host}:{testserver_http.https_port}/pyodide/test.html"
-        selenium_coverage.goto(addr)
-        selenium_coverage.javascript_setup()
-        selenium_coverage.load_pyodide()
-        selenium_coverage.initialize_pyodide()
-        selenium_coverage.save_state()
-        selenium_coverage.restore_state()
-        selenium_coverage._install_packages()
+        selenium_with_jspi_if_possible.goto(addr)
+        selenium_with_jspi_if_possible.javascript_setup()
+        selenium_with_jspi_if_possible.load_pyodide()
+        selenium_with_jspi_if_possible.initialize_pyodide()
+        selenium_with_jspi_if_possible.save_state()
+        selenium_with_jspi_if_possible.restore_state()
+        selenium_with_jspi_if_possible._install_packages()
     dist_dir = testserver_http.pyodide_dist_dir
     yield ServerRunnerInfo(
         testserver_http.http_host,
         testserver_http.https_port,
-        selenium_coverage,
+        selenium_with_jspi_if_possible,
         dist_dir,
-        selenium_coverage.with_jspi,
+        selenium_with_jspi_if_possible.with_jspi,
     )
 
 
