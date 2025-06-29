@@ -98,6 +98,7 @@ def selenium_coverage(
             )
 
         print("Installed package:", result)
+        self.run_js(("await pyodide.loadPackage('coverage')"))
         self.run_js(
             """
             await pyodide.loadPackage("coverage")
