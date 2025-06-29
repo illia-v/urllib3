@@ -99,13 +99,21 @@ def selenium_coverage(
 
         print("Installed package:", result)
 
-        if not self.with_jspi:
-            self.run_js("await pyodide.loadPackage('coverage')")
-            self.run_js("await pyodide.runPythonAsync('import coverage')")
-            self.run_js(
-                "await pyodide.runPythonAsync(\"_coverage= coverage.Coverage(source_pkgs=['urllib3'])\")"
-            )
-            self.run_js("await pyodide.runPythonAsync('_coverage.start()')")
+        self.run_js(
+            """
+            await pyodide.loadPackage('coverage', {
+                errorCallback: (e) => {
+                console.error("Error loading coverage package:", e);
+                throw e;
+                }
+            })
+            """
+        )
+        self.run_js("await pyodide.runPythonAsync('import coverage')")
+        self.run_js(
+            "await pyodide.runPythonAsync(\"_coverage= coverage.Coverage(source_pkgs=['urllib3'])\")"
+        )
+        self.run_js("await pyodide.runPythonAsync('_coverage.start()')")
 
     setattr(
         selenium_with_jspi_if_possible,
