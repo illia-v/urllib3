@@ -7,6 +7,8 @@ Note: Import urllib3 inside the test functions to get the importblocker to work
 from __future__ import annotations
 
 import pytest
+import sys
+from unittest.mock import patch
 
 import urllib3
 from dummyserver.testcase import (
@@ -15,17 +17,17 @@ from dummyserver.testcase import (
 )
 from urllib3.exceptions import InsecureRequestWarning
 
-from ..test_no_ssl import TestWithoutSSL
 
-
-class TestHTTPWithoutSSL(HypercornDummyServerTestCase, TestWithoutSSL):
+@patch.dict(sys.modules, {"ssl": None, "_ssl": None})
+class TestHTTPWithoutSSL(HypercornDummyServerTestCase):
     def test_simple(self) -> None:
         with urllib3.HTTPConnectionPool(self.host, self.port) as pool:
             r = pool.request("GET", "/")
             assert r.status == 200, r.data
 
 
-class TestHTTPSWithoutSSL(HTTPSHypercornDummyServerTestCase, TestWithoutSSL):
+@patch.dict(sys.modules, {"ssl": None, "_ssl": None})
+class TestHTTPSWithoutSSL(HTTPSHypercornDummyServerTestCase):
     def test_simple(self) -> None:
         with urllib3.HTTPSConnectionPool(
             self.host, self.port, cert_reqs="NONE"
