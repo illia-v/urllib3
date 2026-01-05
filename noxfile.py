@@ -34,6 +34,7 @@ def tests_impl(
     ).strip()  # type: ignore[union-attr] # mypy doesn't know that silent=True  will return a string
     implementation_name, release_level, _is_gil_enabled = session_python_info.split(" ")
     free_threading = _is_gil_enabled == "False"
+    python_version = session.run("python", "--version", silent=True).split()[1]  # type: ignore[union-attr]
 
     if extras is None:
         # brotlicffi does not support free-threading
@@ -73,6 +74,7 @@ def tests_impl(
     pytest_session_envvars = {
         "PYTHONWARNINGS": "always::DeprecationWarning",
         "COVERAGE_CORE": "sysmon",
+        "COVERAGE_FILE": f".coverage.{session.name}.{implementation_name}.{python_version}.{free_threading}.{sys.platform}",
     }
 
     # Inspired from https://hynek.me/articles/ditch-codecov-python/
@@ -81,12 +83,10 @@ def tests_impl(
         "python",
         *(("-bb",) if byte_string_comparisons else ()),
         "-m",
-        "coverage",
-        "run",
-        "--parallel-mode",
-        "-m",
         "pytest",
         *("--memray", "--hide-memray-summary") if memray_supported else (),
+        "--cov=urllib3",
+        "--cov-report=",
         "-v",
         "-ra",
         *(("-n", "auto") if parallel else ()),
