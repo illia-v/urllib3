@@ -88,6 +88,8 @@ def tests_impl(
         *("--memray", "--hide-memray-summary") if memray_supported else (),
         "-v",
         "-ra",
+        "-n",
+        "auto",
         *(("--integration",) if integration else ()),
         "--tb=native",
         "--durations=10",
