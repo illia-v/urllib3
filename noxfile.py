@@ -22,6 +22,7 @@ def tests_impl(
     integration: bool = False,
     pytest_extra_args: list[str] = [],
     dependency_group: str = "dev",
+    parallel: bool = True,
 ) -> None:
     # Retrieve sys info from the Python implementation under test
     # to avoid enabling memray when nox runs under CPython but tests PyPy
@@ -88,8 +89,7 @@ def tests_impl(
         *("--memray", "--hide-memray-summary") if memray_supported else (),
         "-v",
         "-ra",
-        "-n",
-        "auto",
+        *(("-n", "auto") if parallel else ()),
         *(("--integration",) if integration else ()),
         "--tb=native",
         "--durations=10",
@@ -302,6 +302,8 @@ def emscripten(session: nox.Session, runner: str) -> None:
             "-v",
         ],
         dependency_group="emscripten",
+        # Tests in Chrome and Firefox do not succeed when run in parallel.
+        parallel=runner == "node",
     )
 
 
