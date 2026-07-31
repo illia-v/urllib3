@@ -55,6 +55,7 @@ except ImportError:
 
 import logging
 import ssl
+import threading
 import typing
 from socket import socket as socket_cls
 
@@ -444,6 +445,15 @@ class PyOpenSSLContext:
         self._minimum_version: int = ssl.TLSVersion.MINIMUM_SUPPORTED
         self._maximum_version: int = ssl.TLSVersion.MAXIMUM_SUPPORTED
         self._verify_flags: int = ssl.VERIFY_X509_TRUSTED_FIRST
+        # pyOpenSSL 26.2.0+ forbids context mutation after first use, so serialize
+        # urllib3's idempotent setup with Connection creation; mutations requested
+        # directly by urllib3 users remain unsupported.
+        self._lock = threading.RLock()
+        self._urllib3_alpn_protocols: tuple[bytes, ...] | None = None
+        self._urllib3_loaded_verify_locations: set[
+            tuple[bytes | None, bytes | None, bytes | None]
+        ] = set()
+        self._urllib3_loaded_cert_chain: tuple[str, str] | None = None
 
     @property
     def options(self) -> int:
@@ -451,8 +461,9 @@ class PyOpenSSLContext:
 
     @options.setter
     def options(self, value: int) -> None:
-        self._options = value
-        self._set_ctx_options()
+        with self._lock:
+            self._options = value
+            self._set_ctx_options()
 
     @property
     def verify_flags(self) -> int:
@@ -460,8 +471,9 @@ class PyOpenSSLContext:
 
     @verify_flags.setter
     def verify_flags(self, value: int) -> None:
-        self._verify_flags = value
-        self._ctx.get_cert_store().set_flags(self._verify_flags)  # type: ignore[union-attr]
+        with self._lock:
+            self._verify_flags = value
+            self._ctx.get_cert_store().set_flags(self._verify_flags)  # type: ignore[union-attr]
 
     @property
     def verify_mode(self) -> int:
@@ -469,15 +481,29 @@ class PyOpenSSLContext:
 
     @verify_mode.setter
     def verify_mode(self, value: ssl.VerifyMode) -> None:
-        self._ctx.set_verify(_stdlib_to_openssl_verify[value], _verify_callback)
+        with self._lock:
+            self._ctx.set_verify(_stdlib_to_openssl_verify[value], _verify_callback)
+
+    def _urllib3_set_verify_mode(self, value: ssl.VerifyMode) -> None:
+        """
+        Set the verify mode once for urllib3 setup.
+
+        pyOpenSSL 26.2.0+ forbids context mutations after first use.
+        """
+        with self._lock:
+            if self.verify_mode == value:
+                return
+            self._ctx.set_verify(_stdlib_to_openssl_verify[value], _verify_callback)
 
     def set_default_verify_paths(self) -> None:
-        self._ctx.set_default_verify_paths()
+        with self._lock:
+            self._ctx.set_default_verify_paths()
 
     def set_ciphers(self, ciphers: bytes | str) -> None:
         if isinstance(ciphers, str):
             ciphers = ciphers.encode("utf-8")
-        self._ctx.set_cipher_list(ciphers)
+        with self._lock:
+            self._ctx.set_cipher_list(ciphers)
 
     def load_verify_locations(
         self,
@@ -485,10 +511,44 @@ class PyOpenSSLContext:
         capath: str | None = None,
         cadata: bytes | None = None,
     ) -> None:
-        if cafile is not None:
-            cafile = cafile.encode("utf-8")  # type: ignore[assignment]
-        if capath is not None:
-            capath = capath.encode("utf-8")  # type: ignore[assignment]
+        cafile_bytes, capath_bytes = self._normalize_verify_locations(cafile, capath)
+        with self._lock:
+            self._load_verify_locations(cafile_bytes, capath_bytes, cadata)
+            self._urllib3_loaded_verify_locations.clear()
+
+    def _urllib3_load_verify_locations(
+        self,
+        cafile: str | None = None,
+        capath: str | None = None,
+        cadata: bytes | None = None,
+    ) -> None:
+        """
+        Load each CA configuration once for urllib3 setup.
+
+        pyOpenSSL 26.2.0+ forbids context mutations after first use.
+        """
+        cafile_bytes, capath_bytes = self._normalize_verify_locations(cafile, capath)
+        identity = (cafile_bytes, capath_bytes, cadata)
+        with self._lock:
+            if identity in self._urllib3_loaded_verify_locations:
+                return
+            self._load_verify_locations(cafile_bytes, capath_bytes, cadata)
+            self._urllib3_loaded_verify_locations.add(identity)
+
+    @staticmethod
+    def _normalize_verify_locations(
+        cafile: str | None, capath: str | None
+    ) -> tuple[bytes | None, bytes | None]:
+        cafile_bytes = cafile.encode("utf-8") if cafile is not None else None
+        capath_bytes = capath.encode("utf-8") if capath is not None else None
+        return cafile_bytes, capath_bytes
+
+    def _load_verify_locations(
+        self,
+        cafile: bytes | None,
+        capath: bytes | None,
+        cadata: bytes | None,
+    ) -> None:
         try:
             self._ctx.load_verify_locations(cafile, capath)
             if cadata is not None:
@@ -502,6 +562,36 @@ class PyOpenSSLContext:
         keyfile: str | None = None,
         password: str | bytes | None = None,
     ) -> None:
+        resolved_keyfile = keyfile or certfile
+        with self._lock:
+            self._load_cert_chain(certfile, resolved_keyfile, password)
+            self._urllib3_loaded_cert_chain = None
+
+    def _urllib3_load_cert_chain(
+        self,
+        certfile: str,
+        keyfile: str | None = None,
+        password: str | bytes | None = None,
+    ) -> None:
+        """
+        Load each certificate and key pair once for urllib3 setup.
+
+        pyOpenSSL 26.2.0+ forbids context mutations after first use.
+        """
+        resolved_keyfile = keyfile or certfile
+        identity = (certfile, resolved_keyfile)
+        with self._lock:
+            if self._urllib3_loaded_cert_chain == identity:
+                return
+            self._load_cert_chain(certfile, resolved_keyfile, password)
+            self._urllib3_loaded_cert_chain = identity
+
+    def _load_cert_chain(
+        self,
+        certfile: str,
+        keyfile: str,
+        password: str | bytes | None,
+    ) -> None:
         try:
             self._ctx.use_certificate_chain_file(certfile)
             if password is not None:
@@ -511,22 +601,37 @@ class PyOpenSSLContext:
                 # Keep using the older password-callback path until 2026's
                 # versions because set_passwd_cb() became deprecated in 26.3.0.
                 if int(OpenSSL.__version__.split(".")[0]) >= 26:
-                    with open(keyfile or certfile, "rb") as key_file:
+                    with open(keyfile, "rb") as key_file:
                         private_key = load_pem_private_key(key_file.read(), password)
                     # cryptography's loader returns a wider private-key union
                     # than pyOpenSSL accepts, so we add `type: ignore` here.
                     self._ctx.use_privatekey(private_key)  # type: ignore[arg-type]
                 else:
                     self._ctx.set_passwd_cb(lambda *_: password)
-                    self._ctx.use_privatekey_file(keyfile or certfile)
+                    self._ctx.use_privatekey_file(keyfile)
             else:
-                self._ctx.use_privatekey_file(keyfile or certfile)
+                self._ctx.use_privatekey_file(keyfile)
         except (OpenSSL.SSL.Error, TypeError, ValueError) as e:
             raise ssl.SSLError(f"Unable to load certificate chain: {e!r}") from e
 
     def set_alpn_protocols(self, protocols: list[bytes | str]) -> None:
-        protocols = [util.util.to_bytes(p, "ascii") for p in protocols]
-        return self._ctx.set_alpn_protos(protocols)  # type: ignore[arg-type]
+        protocols_bytes = [util.util.to_bytes(p, "ascii") for p in protocols]
+        with self._lock:
+            self._ctx.set_alpn_protos(protocols_bytes)
+            self._urllib3_alpn_protocols = None
+
+    def _urllib3_set_alpn_protocols(self, protocols: list[bytes | str]) -> None:
+        """
+        Set each ALPN configuration once for urllib3 setup.
+
+        pyOpenSSL 26.2.0+ forbids context mutations after first use.
+        """
+        protocols_tuple = tuple(util.util.to_bytes(p, "ascii") for p in protocols)
+        with self._lock:
+            if self._urllib3_alpn_protocols == protocols_tuple:
+                return
+            self._ctx.set_alpn_protos(list(protocols_tuple))
+            self._urllib3_alpn_protocols = protocols_tuple
 
     def wrap_socket(
         self,
@@ -536,7 +641,8 @@ class PyOpenSSLContext:
         suppress_ragged_eofs: bool = True,
         server_hostname: bytes | str | None = None,
     ) -> WrappedSocket:
-        cnx = OpenSSL.SSL.Connection(self._ctx, sock)
+        with self._lock:
+            cnx = OpenSSL.SSL.Connection(self._ctx, sock)
 
         # If server_hostname is an IP, don't use it for SNI, per RFC6066 Section 3
         if server_hostname and not util.ssl_.is_ipaddress(server_hostname):
@@ -572,8 +678,9 @@ class PyOpenSSLContext:
 
     @minimum_version.setter
     def minimum_version(self, minimum_version: int) -> None:
-        self._minimum_version = minimum_version
-        self._set_ctx_options()
+        with self._lock:
+            self._minimum_version = minimum_version
+            self._set_ctx_options()
 
     @property
     def maximum_version(self) -> int:
@@ -581,8 +688,9 @@ class PyOpenSSLContext:
 
     @maximum_version.setter
     def maximum_version(self, maximum_version: int) -> None:
-        self._maximum_version = maximum_version
-        self._set_ctx_options()
+        with self._lock:
+            self._maximum_version = maximum_version
+            self._set_ctx_options()
 
 
 def _verify_callback(

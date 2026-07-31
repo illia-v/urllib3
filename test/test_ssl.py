@@ -108,7 +108,12 @@ class TestSSL:
         ssl_.ssl_wrap_socket(sock, ca_certs="/tmp/fake-file")
 
         context.load_default_certs.assert_not_called()
-        context.load_verify_locations.assert_called_with("/tmp/fake-file", None, None)
+        load_verify_locations = getattr(
+            context,
+            "_urllib3_load_verify_locations",
+            context.load_verify_locations,
+        )
+        load_verify_locations.assert_called_with("/tmp/fake-file", None, None)
 
     def test_wrap_socket_default_loads_default_certs(
         self, monkeypatch: pytest.MonkeyPatch

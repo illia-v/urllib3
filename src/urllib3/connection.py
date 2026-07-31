@@ -1007,7 +1007,13 @@ def _ssl_wrap_socket_and_match_hostname(
     else:
         context = ssl_context
 
-    context.verify_mode = resolve_cert_reqs(cert_reqs)
+    resolved_cert_reqs = resolve_cert_reqs(cert_reqs)
+    # PyOpenSSLContext provides a private method to avoid unnecessary
+    # context mutations.
+    if set_verify_mode := getattr(context, "_urllib3_set_verify_mode", None):
+        set_verify_mode(resolved_cert_reqs)
+    else:
+        context.verify_mode = resolved_cert_reqs
 
     # In some cases, we want to verify hostnames ourselves
     if (

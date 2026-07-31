@@ -408,7 +408,14 @@ def ssl_wrap_socket(
 
     if ca_certs or ca_cert_dir or ca_cert_data:
         try:
-            context.load_verify_locations(ca_certs, ca_cert_dir, ca_cert_data)
+            # PyOpenSSLContext provides a private method to avoid unnecessary
+            # context mutations.
+            load_verify_locations = getattr(
+                context,
+                "_urllib3_load_verify_locations",
+                context.load_verify_locations,
+            )
+            load_verify_locations(ca_certs, ca_cert_dir, ca_cert_data)
         except OSError as e:
             raise SSLError(e) from e
 
@@ -423,12 +430,22 @@ def ssl_wrap_socket(
         raise SSLError("Client private key is encrypted, password is required")
 
     if certfile:
+        # PyOpenSSLContext provides a private method to avoid unnecessary
+        # context mutations.
+        load_cert_chain = getattr(
+            context, "_urllib3_load_cert_chain", context.load_cert_chain
+        )
         if key_password is None:
-            context.load_cert_chain(certfile, keyfile)
+            load_cert_chain(certfile, keyfile)
         else:
-            context.load_cert_chain(certfile, keyfile, key_password)
+            load_cert_chain(certfile, keyfile, key_password)
 
-    context.set_alpn_protocols(ALPN_PROTOCOLS)
+    # PyOpenSSLContext provides a private method to avoid unnecessary
+    # context mutations.
+    set_alpn_protocols = getattr(
+        context, "_urllib3_set_alpn_protocols", context.set_alpn_protocols
+    )
+    set_alpn_protocols(ALPN_PROTOCOLS)
 
     ssl_sock = _ssl_wrap_socket_impl(sock, context, tls_in_tls, server_hostname)
     return ssl_sock

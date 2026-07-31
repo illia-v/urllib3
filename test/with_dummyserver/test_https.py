@@ -1177,6 +1177,70 @@ class BaseTestHTTPS(HTTPSHypercornDummyServerTestCase):
                 == str(cm.value.reason)
             )
 
+    def test_reusable_context_with_client_intermediate(self) -> None:
+        context = util.ssl_.create_urllib3_context(
+            ssl_minimum_version=self.tls_version()
+        )
+        context.load_verify_locations(cafile=DEFAULT_CA)
+        pool = HTTPSConnectionPool(
+            self.host,
+            self.port,
+            ssl_context=context,
+            key_file=os.path.join(self.certs_dir, CLIENT_INTERMEDIATE_KEY),
+            cert_file=os.path.join(self.certs_dir, CLIENT_INTERMEDIATE_PEM),
+        )
+        with pool:
+            first_response = second_response = None
+            try:
+                first_response = pool.request(
+                    "GET",
+                    "/certificate",
+                    preload_content=False,
+                    release_conn=False,
+                )
+                second_response = pool.request("GET", "/certificate")
+                second_status = second_response.status
+                subject = second_response.json()
+                num_connections = pool.num_connections
+            finally:
+                if first_response is not None:
+                    first_response.close()
+                if second_response is not None:
+                    second_response.close()
+
+        assert second_status == 200
+        assert subject["organizationalUnitName"].startswith("Testing cert")
+        assert num_connections == 2
+
+    def test_reusable_context_combines_with_ca_certs(self) -> None:
+        context = util.ssl_.create_urllib3_context(
+            cert_reqs=ssl.CERT_REQUIRED,
+            ssl_minimum_version=self.tls_version(),
+        )
+        pool = HTTPSConnectionPool(
+            self.host,
+            self.port,
+            ca_certs=DEFAULT_CA,
+            ssl_context=context,
+        )
+        with pool:
+            first_response = second_response = None
+            try:
+                first_response = pool.request(
+                    "GET", "/", preload_content=False, release_conn=False
+                )
+                second_response = pool.request("GET", "/")
+                second_status = second_response.status
+                num_connections = pool.num_connections
+            finally:
+                if first_response is not None:
+                    first_response.close()
+                if second_response is not None:
+                    second_response.close()
+
+        assert second_status == 200
+        assert num_connections == 2
+
 
 @pytest.mark.usefixtures("requires_tlsv1")
 class TestHTTPS_TLSv1(BaseTestHTTPS):
