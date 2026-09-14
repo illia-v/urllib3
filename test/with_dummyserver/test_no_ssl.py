@@ -6,9 +6,10 @@ Note: Import urllib3 inside the test functions to get the importblocker to work
 
 from __future__ import annotations
 
-import pytest
 import sys
 from unittest.mock import patch
+
+import pytest
 
 import urllib3
 from dummyserver.testcase import (
