@@ -37,6 +37,7 @@ from dummyserver.testcase import SocketDummyServerTestCase, consume_socket
 from urllib3 import (
     BaseHTTPResponse,
     HTTPConnectionPool,
+    HTTPResponse,
     HTTPSConnectionPool,
     ProxyManager,
     util,
@@ -87,6 +88,62 @@ class TestCookies(SocketDummyServerTestCase):
             r = pool.request("GET", "/", retries=0)
             assert r.headers == {"set-cookie": "foo=1, bar=1"}
             assert r.headers.getlist("set-cookie") == ["foo=1", "bar=1"]
+
+    def test_obsolete_line_folding_is_unfolded(self) -> None:
+        def folded_cookie_response_handler(listener: socket.socket) -> None:
+            with listener.accept()[0] as sock:
+                buf = b""
+                while not buf.endswith(b"\r\n\r\n"):
+                    buf += sock.recv(65536)
+
+                sock.sendall(
+                    b"HTTP/1.1 200 OK\r\n"
+                    b"Set-Cookie: ___utmvbtouVBFmB=gZg\r\n"
+                    b"    XbNOjalT: Lte; path=/; Max-Age=900\r\n"
+                    b"Set-Cookie: ordinary=1; Path=/\r\n"
+                    b"Fold-Space-Space: before \r\n"
+                    b" after\r\n"
+                    b"Fold-Space-Tab: before \r\n"
+                    b"\tafter\r\n"
+                    b"Fold-Tab-Space: before\t\r\n"
+                    b" after\r\n"
+                    b"Fold-Tab-Tab: before\t\r\n"
+                    b"\tafter\r\n"
+                    b"Fold-Mixed-Repeated: one \t\r\n"
+                    b"\t  two\t \r\n"
+                    b" \tthree\r\n"
+                    b"Ordinary: one\t two\r\n"
+                    b"Content-Length: 0\r\n"
+                    b"\r\n"
+                )
+
+        self._start_server(folded_cookie_response_handler)
+        with HTTPConnectionPool(self.host, self.port) as pool:
+            r = pool.request("GET", "/", retries=0)
+
+            assert r.headers.getlist("set-cookie") == [
+                "___utmvbtouVBFmB=gZg XbNOjalT: Lte; path=/; Max-Age=900",
+                "ordinary=1; Path=/",
+            ]
+            assert r.headers["fold-space-space"] == "before after"
+            assert r.headers["fold-space-tab"] == "before after"
+            assert r.headers["fold-tab-space"] == "before after"
+            assert r.headers["fold-tab-tab"] == "before after"
+            assert r.headers["fold-mixed-repeated"] == "one two three"
+            assert r.headers["ordinary"] == "one\t two"
+            assert r.headers["content-length"] == "0"
+            assert all(
+                "\r" not in value and "\n" not in value for value in r.headers.values()
+            )
+
+            assert isinstance(r, HTTPResponse)
+            assert r._original_response is not None
+            assert r._original_response.headers is r._original_response.msg
+            assert r._original_response.msg.get_all("set-cookie") == [
+                "___utmvbtouVBFmB=gZg XbNOjalT: Lte; path=/; Max-Age=900",
+                "ordinary=1; Path=/",
+            ]
+            assert r._original_response.msg["fold-mixed-repeated"] == "one two three"
 
 
 class TestSNI(SocketDummyServerTestCase):
@@ -1091,7 +1148,44 @@ class TestSocketClosing(SocketDummyServerTestCase):
 
 
 class TestProxyManager(SocketDummyServerTestCase):
-    def test_simple(self) -> None:
+    @pytest.mark.parametrize(
+        ("target_url", "expected_request_line", "expected_host"),
+        [
+            pytest.param(
+                "http://google.com/",
+                b"GET http://google.com/ HTTP/1.1",
+                b"Host: google.com",
+                id="simple",
+            ),
+            pytest.param(
+                "http://example.com/path#marker=value",
+                b"GET http://example.com/path HTTP/1.1",
+                b"Host: example.com",
+                id="fragment-after-path",
+            ),
+            pytest.param(
+                "http://example.com/path?x=1#marker=value",
+                b"GET http://example.com/path?x=1 HTTP/1.1",
+                b"Host: example.com",
+                id="fragment-after-query",
+            ),
+            pytest.param(
+                "http://example.com/#marker=value",
+                b"GET http://example.com/ HTTP/1.1",
+                b"Host: example.com",
+                id="root-path-with-fragment",
+            ),
+            pytest.param(
+                "http://example.com/path?x=1#",
+                b"GET http://example.com/path?x=1 HTTP/1.1",
+                b"Host: example.com",
+                id="empty-fragment",
+            ),
+        ],
+    )
+    def test_simple(
+        self, target_url: str, expected_request_line: bytes, expected_host: bytes
+    ) -> None:
         def echo_socket_handler(listener: socket.socket) -> None:
             sock = listener.accept()[0]
 
@@ -1113,7 +1207,7 @@ class TestProxyManager(SocketDummyServerTestCase):
         self._start_server(echo_socket_handler)
         base_url = f"http://{self.host}:{self.port}"
         with proxy_from_url(base_url) as proxy:
-            r = proxy.request("GET", "http://google.com/")
+            r = proxy.request("GET", target_url)
 
             assert r.status == 200
             # FIXME: The order of the headers is not predictable right now. We
@@ -1121,8 +1215,8 @@ class TestProxyManager(SocketDummyServerTestCase):
             # OrderedDict/MultiDict).
             assert sorted(r.data.split(b"\r\n")) == sorted(
                 [
-                    b"GET http://google.com/ HTTP/1.1",
-                    b"Host: google.com",
+                    expected_request_line,
+                    expected_host,
                     b"Accept-Encoding: identity",
                     b"Accept: */*",
                     b"User-Agent: " + _get_default_user_agent().encode("utf-8"),
@@ -1215,24 +1309,30 @@ class TestProxyManager(SocketDummyServerTestCase):
 
     def test_tunnel_sets_http_11_alpn(self) -> None:
         done_receiving = Event()
-        self.buf = b""
+        alpn_protocol: str | None = None
 
         def socket_handler(listener: socket.socket) -> None:
+            nonlocal alpn_protocol
             sock = listener.accept()[0]
 
-            self.buf = sock.recv(65536)  # We only accept one packet
-            done_receiving.set()  # let the test know it can proceed
-            sock.close()
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(DEFAULT_CERTS["certfile"], DEFAULT_CERTS["keyfile"])
+            # Prefer h2 so the assertion fails if the client offers it.
+            context.set_alpn_protocols(["h2", "http/1.1"])
+            try:
+                with context.wrap_socket(sock, server_side=True) as ssl_sock:
+                    alpn_protocol = ssl_sock.selected_alpn_protocol()
+            finally:
+                done_receiving.set()  # let the test know it can proceed
 
         self._start_server(socket_handler)
         base_url = f"https://{self.host}:{self.port}"
-        with proxy_from_url(base_url) as proxy:
+        with proxy_from_url(base_url, ca_certs=DEFAULT_CA) as proxy:
             with pytest.raises(MaxRetryError):
                 proxy.request("GET", "https://localhost/")
 
         done_receiving.wait()
-        assert b"http/1.1" in self.buf
-        assert b"h2" not in self.buf
+        assert alpn_protocol == "http/1.1"
 
     def test_connect_reconn(self) -> None:
         def proxy_ssl_one(listener: socket.socket) -> None:
@@ -1992,7 +2092,7 @@ class TestHeaders(SocketDummyServerTestCase):
             ]
 
             for header in self.received_headers:
-                (key, value) = header.split(b": ")
+                key, value = header.split(b": ")
                 self.parsed_headers[key.decode("ascii")] = value.decode("ascii")
 
             sock.send(b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n")
@@ -2485,7 +2585,7 @@ class TestMultipartResponse(SocketDummyServerTestCase):
                     try:
                         sock = listener.accept()[0]
                         break
-                    except (TimeoutError, socket.timeout):
+                    except TimeoutError:
                         continue
 
                 sock.settimeout(LONG_TIMEOUT)
@@ -2579,7 +2679,7 @@ class TestContentFraming(SocketDummyServerTestCase):
                 try:
                     sock = listener.accept()[0]
                     break
-                except (TimeoutError, socket.timeout):
+                except TimeoutError:
                     continue
             sock.settimeout(LONG_TIMEOUT)
 

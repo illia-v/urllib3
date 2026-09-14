@@ -9,6 +9,12 @@ If you wish to add a new feature or fix a bug:
    a fresh issue to start a discussion around a feature idea or a bug. There is
    a *Contributor Friendly* tag for issues that should be ideal for people who
    are not very familiar with the codebase yet.
+#. Check for `open pull requests <https://github.com/urllib3/urllib3/pulls>`_
+   addressing the same issue before starting work. We encourage you to share
+   feedback and suggestions in the existing pull request and issue. Duplicate
+   pull requests for the same issue, including alternative solutions, will be
+   rejected without review unless a maintainer has approved opening an
+   alternative pull request in advance.
 #. Fork the `urllib3 repository on Github <https://github.com/urllib3/urllib3>`_
    to start making your changes.
 #. Write a test which shows that the bug was fixed or that the feature works
@@ -36,7 +42,7 @@ We use some external dependencies, multiple interpreters and code coverage
 analysis while running test suite. Our ``noxfile.py`` handles much of this for
 you::
 
-  $ nox --reuse-existing-virtualenvs --sessions test-3.12 test-pypy3.10
+  $ nox --reuse-existing-virtualenvs --sessions test-3.12 test-pypy3.11
   [ Nox will create virtualenv if needed, install the specified dependencies, and run the commands in order.]
 
 
@@ -48,8 +54,8 @@ like so::
   $ which python3.12
   ~/.pyenv/versions/3.12.1/bin/python3.12
 
-  $ which pypy3.10
-  ~/.pyenv/versions/pypy3.10-7.3.13/bin/pypy3.10
+  $ which pypy3.11
+  ~/.pyenv/versions/pypy3.11-7.3.22/bin/pypy3.11
 
 
 There is also a nox command for running all of our tests and multiple python
@@ -66,7 +72,6 @@ suite::
   [ Nox will create virtualenv if needed, install the specified dependencies, and run the commands in order.]
   .......
   .......
-  nox > Session test-3.9 was successful.
   nox > Session test-3.10 was successful.
   nox > Session test-3.11 was successful.
   nox > Session test-3.12 was successful.
@@ -129,7 +134,7 @@ that is marked with the `"💰 Bounty $X00" label <https://github.com/urllib3/ur
 - The list above isn't an exhaustive list of criteria or rules for how/when money is distributed.
   **The final say on whether money will be distributed is up to maintainers.**
 
-This program is an experiment so if you have positive or negative feedback on the process you can contact the maintainers through one of the above channels. 
+This program is an experiment so if you have positive or negative feedback on the process you can contact the maintainers through one of the above channels.
 
 Note that this program isn't a "bug bounty" program, we don't distribute funds to reporters of bugs or security vulnerabilities at this time.
 
@@ -179,7 +184,7 @@ While writing documentation you should follow these guidelines:
 - Comments should always go above a code section rather than below with the exception of print
   statements where the comment containing the result goes below.
 - Imports should be their own section separated from the rest of the example with a line of whitespace.
-- Imports should minimized if possible. Use import urllib3 instead of from urllib3 import X. 
+- Imports should minimized if possible. Use import urllib3 instead of from urllib3 import X.
 - Sort imports similarly to isort, standard library first and third-party (like urllib3) come after.
 - No whitespace is required between the sections as normally would be in case of isort.
 - Add print statements along with a comment below them showing the output, potentially compressed.

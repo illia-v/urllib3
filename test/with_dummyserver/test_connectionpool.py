@@ -496,7 +496,7 @@ class TestConnectionPool(HypercornDummyServerTestCase):
     def test_redirect_relative_url_no_deprecation(self) -> None:
         with HTTPConnectionPool(self.host, self.port) as pool:
             with warnings.catch_warnings():
-                warnings.simplefilter("error", DeprecationWarning)
+                warnings.simplefilter("error", FutureWarning)
                 pool.request("GET", "/redirect", fields={"target": "/"})
 
     def test_redirect(self) -> None:
@@ -508,6 +508,25 @@ class TestConnectionPool(HypercornDummyServerTestCase):
             assert r.status == 200
             assert r.data == b"Dummy server!"
 
+    @mock.patch("urllib3.response.GzipDecoder.decompress")
+    def test_no_decoding_with_redirect_when_preload_disabled(
+        self, gzip_decompress: mock.MagicMock
+    ) -> None:
+        """
+        Test that urllib3 does not attempt to decode a gzipped redirect
+        response when `preload_content` is set to `False`.
+        """
+        with HTTPConnectionPool(self.host, self.port) as pool:
+            # Three requests are expected: two redirects and one final / 200 OK.
+            response = pool.request(
+                "GET",
+                "/redirect",
+                fields={"target": "/redirect?compressed=true", "compressed": "true"},
+                preload_content=False,
+            )
+        assert response.status == 200
+        gzip_decompress.assert_not_called()
+
     def test_303_redirect_makes_request_lose_body(self) -> None:
         with HTTPConnectionPool(self.host, self.port) as pool:
             response = pool.request(
@@ -518,6 +537,30 @@ class TestConnectionPool(HypercornDummyServerTestCase):
         data = response.json()
         assert data["params"] == {}
         assert "Content-Type" not in HTTPHeaderDict(data["headers"])
+
+    @pytest.mark.parametrize("chunked_via", ["kwarg", "header"])
+    def test_303_redirect_makes_request_lose_body_framing(
+        self, chunked_via: str
+    ) -> None:
+        # The body is dropped, so the redirected GET must not keep announcing
+        # a chunked body that it is never going to send.
+        request_headers: dict[str, str] = {}
+        kw: dict[str, typing.Any] = {}
+        if chunked_via == "kwarg":
+            kw["chunked"] = True
+        else:
+            request_headers["Transfer-Encoding"] = "chunked"
+        with HTTPConnectionPool(self.host, self.port) as pool:
+            response = pool.request(
+                "POST",
+                "/redirect?target=/headers_and_params",
+                body=iter([b"xxxxxxxx"]),
+                headers=request_headers,
+                **kw,
+            )
+        headers = HTTPHeaderDict(response.json()["headers"])
+        assert "Transfer-Encoding" not in headers
+        assert "Content-Length" not in headers
 
     def test_bad_connect(self) -> None:
         with HTTPConnectionPool("badhost.invalid", self.port) as pool:
@@ -1079,10 +1122,10 @@ class TestConnectionPool(HypercornDummyServerTestCase):
         with HTTPConnectionPool(self.host, self.port) as pool:
             conn = pool._get_conn()
 
-            with pytest.warns(DeprecationWarning) as w:
+            with pytest.warns(FutureWarning) as w:
                 conn.request_chunked("GET", "/headers")  # type: ignore[attr-defined]
             assert len(w) == 1 and str(w[0].message) == (
-                "HTTPConnection.request_chunked() is deprecated and will be removed in urllib3 v2.1.0. "
+                "HTTPConnection.request_chunked() is deprecated and will be removed in urllib3 v3.0. "
                 "Instead use HTTPConnection.request(..., chunked=True)."
             )
 
@@ -1424,7 +1467,8 @@ class TestFileBodiesOnRetryOrRedirect(HypercornDummyServerTestCase):
                 raise OSError
 
         body = BadTellObject(b"the data")
-        url = "/redirect?target=/successful_retry"
+        # A 307 keeps the body, so it has to be rewound for the redirect.
+        url = "/redirect?target=/successful_retry&status=307"
         # httplib uses fileno if Content-Length isn't supplied,
         # which is unsupported by BytesIO.
         headers = {"Content-Length": "8"}
@@ -1433,6 +1477,23 @@ class TestFileBodiesOnRetryOrRedirect(HypercornDummyServerTestCase):
                 UnrewindableBodyError, match="Unable to record file position for"
             ):
                 pool.urlopen("PUT", url, headers=headers, body=body)
+
+    def test_303_redirect_with_failed_tell(self) -> None:
+        """A 303 drops the body, so it never needs to be rewound"""
+
+        class BadTellObject(io.BytesIO):
+            def tell(self) -> typing.NoReturn:
+                raise OSError
+
+        body = BadTellObject(b"the data")
+        url = "/redirect?target=/echo"
+        # httplib uses fileno if Content-Length isn't supplied,
+        # which is unsupported by BytesIO.
+        headers = {"Content-Length": "8"}
+        with HTTPConnectionPool(self.host, self.port, timeout=LONG_TIMEOUT) as pool:
+            resp = pool.urlopen("PUT", url, headers=headers, body=body)
+        assert resp.status == 200
+        assert resp.data == b""
 
 
 class TestRetryPoolSize(HypercornDummyServerTestCase):
