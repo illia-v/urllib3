@@ -8,6 +8,7 @@ Test what happens if Python was built without SSL
 from __future__ import annotations
 
 import sys
+from test import ModuleStash
 from unittest.mock import patch
 
 import pytest
@@ -20,4 +21,13 @@ class TestImportWithoutSSL:
             import ssl  # noqa: F401
 
     def test_import_urllib3(self) -> None:
-        import urllib3  # noqa: F401
+        # Import urllib3 again while SSL is blocked instead of reusing
+        # cached modules.
+        module_stash = ModuleStash("urllib3")
+        module_stash.stash()
+        try:
+            from urllib3.connection import DummyConnection, HTTPSConnection
+
+            assert HTTPSConnection is DummyConnection  # type: ignore[comparison-overlap]
+        finally:
+            module_stash.pop()
